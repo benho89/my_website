@@ -41,5 +41,6 @@ social:
 superuser: true
 title: Ben Horsley
 ---
+<div align="justify">
 
-Welcome to my site, ***insidethenumbeRs***! I'm currently completing my PhD within the Sports Performance, Recovery, Injury and New Technologies (SPRINT) Research Centre at Australian Catholic University, specifically in the area of using Inertial Measurement Units (IMUs) to quantify running stride mechanics in sport. ***insidethenumbeRs*** is a platform for me to provide visitors to this site with an insight into my PhD research and share some content relating to sports science, sports analytics and tips and tricks on coding in R. For more information about ***insidethenumbeRs***, check out my welcome blog post below.
+Welcome to my site, ***insidethenumbeRs***! If you're interested in sports science/analytics and working with data in R, you've come to the right place. This is my platform to share lots of exciting content about these topics and more. Be sure to check out my welcome blog post below for more information.

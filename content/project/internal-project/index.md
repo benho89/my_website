@@ -13,6 +13,7 @@ url_pdf: ""
 url_slides: ""
 url_video: ""
 ---
+<div align="justify">
 
 I'm currently recruiting Melbourne-based male and female participants for a research project I'm conducting as part of my PhD with the [**Sports Performance, Recovery, Injury and New Technologies (SPRINT) Research Centre**](https://www.acu.edu.au/research/our-research-institutes/sprint-research-centre) at Australian Catholic University. Its a great opportunity to be involved in professional and scientific testing that will provide you with some insight into your own physical qualities, including lower body strength and power, sprint performance and running mechanics.
 

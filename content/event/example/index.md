@@ -21,6 +21,7 @@ url_pdf: ""
 url_slides: ""
 url_video: ""
 ---
+<div align="justify">
 
 I had the opportunity to speak with ***The AthElite Podcast*** last year to discuss wearable technology in sport science. Some of the topics we covered included:
 
