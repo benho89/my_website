@@ -10,8 +10,8 @@ image:
   preview_only: false
 lastmod: "2021-10-03T00:00:00Z"
 projects: []
-subtitle: "What is ***insidethenumbeRs***?"
-summary: "What is ***insidethenumbeRs***?"
+subtitle: "An intro to my new site"
+summary: "What this site is all about."
 tags:
 - ""
 title: Welcome
