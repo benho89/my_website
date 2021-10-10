@@ -43,4 +43,4 @@ title: Ben Horsley
 ---
 <div align="justify">
 
-Welcome to my site, ***insidethenumbeRs***! If you're interested in sports science/analytics and working with data in R, you've come to the right place. This is my platform to share lots of exciting content about these topics and more. Be sure to check out my welcome blog post below for more information.
+Welcome to my site, ***insidethenumbeRs***. If you're interested in sports science/analytics and working with data in R, you've come to the right place. This is my platform to share lots of exciting content about these topics and more. Be sure to check out my welcome blog post below for more information.
