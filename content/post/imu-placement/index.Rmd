@@ -1,5 +1,5 @@
 ---
-date: "2021-10-03T00:00:00Z"
+date: "2021-10-15T00:00:00Z"
 draft: true
 featured: true
 highlight: true
@@ -8,7 +8,7 @@ image:
   focal_point: ""
   placement: 2
   preview_only: false
-lastmod: "2021-10-03T00:00:00Z"
+lastmod: "2021-10-15T00:00:00Z"
 projects: []
 subtitle: "Which sites produce valid stride data?"
 summary: "This post outlines the results of my first PhD study investigating the impact of IMU placement on stride variable validity."

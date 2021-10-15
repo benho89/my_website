@@ -11,7 +11,7 @@ headless: true
 # Order that this section appears on the page.
 weight: 25
 
-title: Latest
+title: <b>Latest</b>
 subtitle: ""
 
 content:
