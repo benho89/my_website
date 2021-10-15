@@ -1,0 +1,79 @@
+---
+date: "2021-10-03T00:00:00Z"
+draft: true
+featured: true
+highlight: true
+image:
+  caption: ""
+  focal_point: ""
+  placement: 2
+  preview_only: false
+lastmod: "2021-10-03T00:00:00Z"
+projects: []
+subtitle: "Which sites produce valid stride data?"
+summary: "This post outlines the results of my first PhD study investigating the impact of IMU placement on stride variable validity."
+tags:
+- "IMUs"
+title: Placement of Inertial Sensors to Quantify Stride Variables
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div align="justify">
+
+<p>Inertial Measurement Units (IMUs) are becoming an increasingly popular tool for advanced movement pattern detection in sport, including the quantification of running stride variables. This post outlines some considerations as it relates to placement of IMUs for running stride analysis, the results of which come from the first of my PhD studies.<br></p>
+<div id="what-are-imus" class="section level4">
+<h4><strong>What are IMUs?</strong></h4>
+<p>An IMU is a small wearable device containing an accelerometer, gyroscope and magnetometer. These sensors sample at a high frequency (≥ 100 data points captured per second) and measure gravitational acceleration, change in rotational angle and orientation with respect to the Earth’s magnetic field in three dimensions (anterior-posterior, vertical and mediolateral). Unlike global positioning systems, IMUs aren’t reliant on satellites and can therefore be used indoors, while they can also capture discrete movement patterns to provide extra detail about physical activity beyond typical distance and speed metrics<sup>1-3</sup>.</p>
+<div class="figure">
+<img src="images/Trident_Axes_v2.jpg" style="width:50.0%;height:50.0%" alt="" />
+<p class="caption"><em>Example of an IMU developed by IMeasureU.</em></p>
+</div>
+</div>
+<div id="why-are-stride-variables-important" class="section level4">
+<h4><strong>Why are stride variables important?</strong></h4>
+<p>Quantifying stride variables is important to understand <strong><em>how</em></strong> an athlete runs. Stride data can provide practitioners with useful information about stride patterns that may be used for gait retraining purposes or to inform performance enhancement strategies. Stride variables are also important for understanding the fatigue response during heavy exercise. We know when runners are fatigued their stride pattern changes<sup>4,5</sup>, resulting in reduced running economy (↑ O<sub>2</sub> cost at a given speed) and a breakdown of running technique that may impose an increased risk of injury<sup>6</sup>. Access to stride data may therefore help practitioners develop interventions aimed at mitigating injury risk.</p>
+</div>
+<div id="how-are-stride-variables-calculated" class="section level4">
+<h4><strong>How are stride variables calculated?</strong></h4>
+<p>Gait event detection algorithms identify discrete events within the IMU data that correspond to initial contact (foot striking the ground) and toe-off (foot leaving the ground)<sup>7,8</sup>. These events are often determined from the peaks in the accelerometer or gyroscope signals based on pre-defined criteria set out in the respective algorithm. Once Initial contact and toe-off are known, we can then calculate a variety of spatiotemporal variables, such as contact time, flight time or stride length.</p>
+<div class="figure">
+<img src="images/Events.png" alt="" />
+<p class="caption"><em>Example of how detection algorithms identify gait events from IMU data. The plot above illustrates how these events are determined from tibial accelerometer data<sup>7</sup>.</em></p>
+</div>
+</div>
+<div id="placement-of-imus" class="section level4">
+<h4><strong>Placement of IMUs</strong></h4>
+<p>So, we know we can quantify stride variables from IMUs, but where do we attach them? Well, a variety of attachment sites have been reported in the literature, while some manufacturers of these sensors recommend their own placement methods. What’s important, though, is understanding how placement affects the validity of stride variables. Does securing an IMU to the foot provide more accurate stride data than the lower back? The first of my PhD studies examined this very question!</p>
+<p><img src="images/Thinking.jpg" style="width:30.0%;height:30.0%" /></p>
+<p>We meta-analysed 9 studies and four stride variables (contact time, flight time, step frequency and step length) to determine whether different placement sites impact stride variable validity by assessing the absolute mean difference (MD) between IMU and reference measures (motion capture, force plate, high-speed camera and photocell systems). The meta-analysis showed the MD for stride variables derived from IMUs worn on the foot, tibia and lower back were not significantly different to those determined by the reference systems across all stride variables analysed<sup>9</sup>. This is depicted in the below forest plots where the width of the diamond (representing the 95% confidence interval of the total effect) for each site overlaps positive and negative MD values.</p>
+<div class="figure">
+<img src="images/CT_Fig.png" alt="" />
+<p class="caption"><em>Forest plot for contact time. Highlighted areas show the width of the diamond (total effect) overlapping positive and negative MD values.</em></p>
+</div>
+<div class="figure">
+<img src="images/FT_Fig.png" alt="" />
+<p class="caption"><em>Forest plot for flight time.</em></p>
+</div>
+<div class="figure">
+<img src="images/SF_Fig.png" alt="" />
+<p class="caption"><em>Forest plot for step frequency.</em></p>
+</div>
+<div class="figure">
+<img src="images/SL_Fig.png" alt="" />
+<p class="caption"><em>Forest plot for step length.</em></p>
+</div>
+<p>So, what does this mean? Well, <strong>we can use the foot, tibia or lower back for placement knowing we can derive valid stride data from either site</strong>, supporting the use of IMUs to analyse stride patterns in the field. Practitioners aren’t limited to using a single site and instead may use different placements depending on the suitability for the specific sport. We can also conclude that validity appears more dependent on the gait event detection approach, or the mathematics behind it, rather than the location of the IMU.</p>
+<p>If you would like to know more about the impact of placement, you can check out the full text of our paper <a href="https://www.researchgate.net/publication/350357041_Does_Site_Matter_Impact_of_Inertial_Measurement_Unit_Placement_on_the_Validity_and_Reliability_of_Stride_Variables_During_Running_A_Systematic_Review_and_Meta-analysis"><strong>here</strong></a>. You may also contact me should you have any questions about our work or using IMUs for quantifying stride variables in your own environment. Stay tuned for a follow-up post to this where I’ll show you how I performed a meta-analysis in R and produced the above forest plots for publication using the <code>meta</code> package.</p>
+<div align="left">
+<p><font size="-1">1.  Cormack SJ, Mooney MG, Morgan W, McGuigan MR. Influence of neuromuscular fatigue on accelerometer load in elite Australian football players. International Journal of Sports Physiology and Performance. 2013;8(4):373-8.<br>
+2.  Glassbrook DJ, Fuller JT, Alderson JA, Doyle TL. Measurement of lower-limb asymmetry in professional rugby league: a technical note describing the use of inertial measurement units. PeerJ. 2020;8:e9366. doi: 10.7717/peerj.9366.<br>
+3.  Armitage M, Beato M, McErlain-Naylor SA. Inter-unit reliability of IMU Step metrics using IMeasureU Blue Trident inertial measurement units for running-based team sport tasks. Journal of Sports Sciences. 2021. doi: 10.1080/02640414.2021.1882726.<br>
+4.  Morin JB, Jeannin T, Chevallier B, Belli A. Spring-mass model characteristics during sprint running: correlation with performance and fatigue-induced changes. International Journal of Sports Medicine. 2006;27(2):158-65.<br>
+5.  Girard O, Micallef J-P, Millet GP. Changes in spring-mass model characteristics during repeated running sprints. European Journal of Applied Physiology. 2011;111(1):125-34.<br>
+6.  McMahon TA, Valiant G, Frederick EC. Groucho running. Journal of Applied Physiology. 1987;62(6):2326-37.<br>
+7.  Benson LC, Clermont CA, Watari R, Exley T, Ferber R. Automated accelerometer-based gait event detection during multiple running conditions. Sensors. 2019;19(7):1483. doi: 10.3390/s19071483.<br>
+8.  Aubol KG, Milner CE. Foot contact identification using a single triaxial accelerometer during running. Journal of Biomechanics. 2020;105:109768. doi: 10.1016/j.jbiomech.2020.109768.<br>
+9.  Horsley BJ, Tofari PJ, Halson SL, Kemp JG, Dickson J, Maniar N, et al. Does site matter? Impact of Inertial Measurement Unit placement on the validity and reliability of stride variables during running: a systematic review and meta-analysis. Sports Medicine. 2021. doi: 10.1007/s40279-021-01443-8.</font></p>
+</div>
