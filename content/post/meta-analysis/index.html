@@ -1,0 +1,250 @@
+---
+date: "2021-10-28T00:00:00Z"
+draft: true
+featured: true
+highlight: true
+image:
+  caption: ""
+  focal_point: ""
+  placement: 2
+  preview_only: false
+lastmod: "2021-10-28T00:00:00Z"
+projects: []
+subtitle: "Create publication-ready forest plots in R"
+summary: "Learn how R can be used to efficiently perform meta-analyses for your research."
+tags:
+- "R"
+title: Using R for Meta-analysis
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div align="justify">
+
+<p>My last post outlined the results from a meta-analysis investigating the impact of Inertial Measurement Unit placement on stride variable validity, which you can check out <a href="https://insidethenumbers.netlify.app/post/imu-placement/"><strong>here</strong></a>. This is a follow-up post that walks you through the steps to performing your own meta-analysis in R and creating publication-quality forest plots. Let’s get started!</p>
+<p>We’ll be using the <code>meta</code> package<sup>1</sup> to perform the meta-analysis and generate a forest plot, where much of the content described below draws upon <a href="https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/"><strong>Doing Meta-Analysis in R: A Hands-on Guide</strong></a> by Mathias Harrer, Pim Cuijpers, Toshi Furukawa and David Ebert.</p>
+<p>First, load in the packages we’ll be using with <code>library()</code>. If you haven’t installed any of these packages yet, run <code>install.packages()</code> and quote the package name inside the parentheses. I’ve commented this out using <code>#</code> as I already have <code>meta</code> installed. You only need to install a package once.</p>
+<pre class="r"><code># install.packages(&quot;tidyverse&quot;)
+# install.packages(&quot;meta&quot;)
+
+library(tidyverse)
+library(meta)
+library(plyr)</code></pre>
+<p>We’re going to need some data to work with. For the purposes of this brief tutorial, I’m going to create some mock data from scratch and pretend to investigate the <strong><em>absolute mean difference in lower body strength before and after a training intervention</em></strong>. We’ll pool pretend studies that measured lower body strength via one-repetition maximum on the back squat exercise. You may also import your own data using <code>read.csv()</code>.</p>
+<pre class="r"><code>set.seed(10)
+study &lt;- paste(&quot;Study&quot;, LETTERS[1:12])
+post_mean &lt;- round_any(c(rnorm(n = 4, mean = 130, sd = 5),
+                         rnorm(n = 4, mean = 80, sd = 5),
+                         rnorm(n = 4, mean = 110, sd = 10)), 2.5)
+post_sd &lt;- round_any(rnorm(n = length(study), mean = 7.5, sd = 2.5), 2.5)
+pre_mean &lt;- round_any(c(rnorm(n = 4, mean = 100, sd = 5),
+                        rnorm(n = 4, mean = 110, sd = 5),
+                        rnorm(n = 4, mean = 110, sd = 10)), 2.5)
+pre_sd &lt;- round_any(rnorm(n = length(study), mean = 7.5, sd = 2.5), 2.5)
+post_n &lt;- round(rnorm(n = length(study), mean = 25, sd = 10))
+pre_n &lt;- post_n
+method &lt;- rep(c(&quot;Method 1&quot;, &quot;Method 2&quot;, &quot;Method 3&quot;), each = 4)
+
+dat &lt;- data.frame(study, post_mean, post_sd, pre_mean, pre_sd, post_n,
+                  pre_n, method)</code></pre>
+<p><code>set.seed()</code> takes any integer (whole number) and allows you to generate the same sequence of random numbers. For example, if you were to copy and paste the above code into your own R script with <code>set.seed(10)</code>, you’ll be able to generate the exact same data as here. Next, I’ve created eight variables to simulate our data and added these to <code>data.frame()</code> assigned (<code>&lt;-</code>) to <code>dat</code>.<br></p>
+<ul>
+<li><code>study</code>  Study labels. I’ve used <code>paste()</code> to add <code>"Study"</code> and the first 12 letters of the alphabet (<code>LETTERS[1:12]</code>) together.<br></li>
+<li><code>post_mean</code>  Mean values for our post-intervention strength scores generated from a normal distribution (<code>rnorm</code>). I’ve combined (<code>c()</code>) three <code>rnorm</code> functions to simulate varying levels of strength data across our 12 studies. For each <code>rnorm</code> function, we specify a sample size (<code>n</code>), <code>mean()</code> and <code>sd()</code>. I’ve also wrapped all of this in <code>round_any()</code> from the <code>plyr</code> package to round our values to the nearest 2.5 as we don’t often see values like 103.6 kg in the strong room!<br></li>
+<li><code>post_sd</code>  Standard deviation of the post-intervention strength scores.<br></li>
+<li><code>pre_mean</code>  Mean of the pre-intervention strength scores (what we’re comparing to).<br></li>
+<li><code>pre_sd</code>  Standard deviation of the pre-intervention strength scores.<br></li>
+<li><code>post_n</code>/<code>pre_n</code>  Number of observations (participants) per study.<br></li>
+<li><code>method</code>  I’m going to show you how to include subgroups in a meta-analysis, so I’ve created <code>method</code> to simulate different training interventions used across our studies. <code>rep()</code> replicates each method four times (<code>each = 4</code>).<br></li>
+</ul>
+<p>We can view the first six rows of our data by using pipe (<code>%&gt;%</code>) and <code>head()</code>from the <code>dplyr</code> package (part of the <code>tidyverse</code> suite of packages).</p>
+<pre class="r"><code>dat %&gt;% head()</code></pre>
+<pre><code>##     study post_mean post_sd pre_mean pre_sd post_n pre_n   method
+## 1 Study A     130.0     7.5     92.5    7.5     18    18 Method 1
+## 2 Study B     130.0    10.0     97.5    2.5     32    32 Method 1
+## 3 Study C     122.5    10.0     97.5    7.5     21    21 Method 1
+## 4 Study D     127.5     7.5     95.0    5.0     22    22 Method 1
+## 5 Study E      82.5     5.0    110.0   10.0     39    39 Method 2
+## 6 Study F      82.5     7.5    107.5    5.0     46    46 Method 2</code></pre>
+<div id="meta-analysis" class="section level4">
+<h4>Meta-analysis</h4>
+<p>Now that we have our data, let’s go ahead and run the meta-analysis. To do this, we’re going to call the <code>metacont()</code> function in the <code>meta</code> package we loaded in earlier. Here’s the code.</p>
+<pre class="r"><code>ma &lt;- metacont(post_n,
+               post_mean,
+               post_sd,
+               pre_n,
+               pre_mean,
+               pre_sd,
+               studlab = study,
+               data = dat,
+               sm = &quot;MD&quot;,
+               comb.fixed = FALSE,
+               comb.random = TRUE,
+               hakn = TRUE,
+               method.tau = &quot;DL&quot;,
+               byvar = method)</code></pre>
+<p>Let’s break it down for context.</p>
+<ul>
+<li><code>post_n</code>/<code>post_mean</code>/<code>post_sd</code>  Number of observations, mean and standard deviation for our post-intervention (this could also be an experimental group).<br></li>
+<li><code>pre_n</code>/<code>pre_mean</code>/<code>pre_sd</code>  Number of observations, mean and standard deviation for our pre-intervention (this could also be a control group).<br></li>
+<li><code>studlab</code>  Study labels in our <code>study</code> variable.<br></li>
+<li><code>data</code>  Data set containing the post- and pre-intervention aggregates. We’re using <code>dat</code> which was created earlier.<br></li>
+<li><code>sm</code>  This is our summary measure for the meta-analysis. We’re calculating the absolute mean difference in this example, so we set our summary measure to <code>"MD"</code>.<br></li>
+<li><code>comb.fixed = FALSE</code>/<code>comb.random = TRUE</code>  We’re assuming that the studies we’re meta-analysing vary in some way, such as differences in the type of training intervention used. We’re therefore choosing a random-effects model (<code>comb.random</code>) over fixed-effects (<code>comb.fixed</code>) for our meta-analysis as this allows us to account for between-study heterogeneity<sup>2</sup>.<br></li>
+<li><code>hakn</code>  Applying a Knapp-Hartung adjustment to our random-effects model.<br></li>
+<li><code>method.tau</code>  This is the method for calculating tau-squared which is the variance in the distribution of true effect sizes. We’re choosing the DerSimonian-Laird (<code>"DL"</code>) method which is frequently used in meta-analyses.<br></li>
+<li><code>byvar</code>  Grouping results by <code>method</code> (training intervention).<br></li>
+</ul>
+<p>Let’s now have a look at the output.</p>
+<pre class="r"><code>ma</code></pre>
+<pre><code>##               MD               95%-CI %W(random)   method
+## Study A  37.5000 [ 32.6001;  42.3999]        8.3 Method 1
+## Study B  32.5000 [ 28.9286;  36.0714]        8.3 Method 1
+## Study C  25.0000 [ 19.6538;  30.3462]        8.3 Method 1
+## Study D  32.5000 [ 28.7334;  36.2666]        8.3 Method 1
+## Study E -27.5000 [-31.0089; -23.9911]        8.3 Method 2
+## Study F -25.0000 [-27.6048; -22.3952]        8.4 Method 2
+## Study G -25.0000 [-29.0008; -20.9992]        8.3 Method 2
+## Study H -32.5000 [-36.7648; -28.2352]        8.3 Method 2
+## Study I -27.5000 [-30.9648; -24.0352]        8.3 Method 3
+## Study J  -5.0000 [ -7.8290;  -2.1710]        8.4 Method 3
+## Study K  25.0000 [ 20.9469;  29.0531]        8.3 Method 3
+## Study L  22.5000 [ 19.5717;  25.4283]        8.4 Method 3
+## 
+## Number of studies combined: k = 12
+## 
+##                          MD              95%-CI    t p-value
+## Random effects model 2.6870 [-15.5154; 20.8894] 0.32  0.7513
+## 
+## Quantifying heterogeneity:
+##  tau^2 = 749.9520 [387.3059; 2300.4537]; tau = 27.3853 [19.6801; 47.9630]
+##  I^2 = 99.6% [99.5%; 99.6%]; H = 15.08 [13.91; 16.34]
+## 
+## Test of heterogeneity:
+##        Q d.f. p-value
+##  2500.62   11       0
+## 
+## Results for subgroups (random effects model):
+##                     k       MD               95%-CI    tau^2     tau      Q
+## method = Method 1   4  32.0134 [ 24.2033;  39.8234]  13.5809  3.6852  11.51
+## method = Method 2   4 -27.2868 [-32.7235; -21.8501]   7.0631  2.6576   9.63
+## method = Method 3   4   3.7426 [-35.8293;  43.3145] 561.2231 23.6901 611.88
+##                     I^2
+## method = Method 1 73.9%
+## method = Method 2 68.8%
+## method = Method 3 99.5%
+## 
+## Test for subgroup differences (random effects model):
+##                       Q d.f.  p-value
+## Between groups   394.17    2 &lt; 0.0001
+## 
+## Details on meta-analytical method:
+## - Inverse variance method
+## - DerSimonian-Laird estimator for tau^2
+## - Jackson method for confidence interval of tau^2 and tau
+## - Hartung-Knapp adjustment for random effects model</code></pre>
+<p>The first thing you see in the <code>ma</code> output is all the studies listed with their individual mean differences (± 95% confidence interval [CI]). These are represented in the units of measurement (kg). We then have our overall mean difference across all studies/subgroups for our random effects model below. Here, we have an effect of 2.69 kg (-15.52, 20.89), suggesting that lower body strength, as measured by a one-repetition maximum on the back squat, improves (marginally) following a training intervention. Makes sense! However, as the 95% CI overlaps positive and negative mean differences, this result is not significantly different (<em>p</em> = 0.75) to pre-intervention levels, so we can’t categorically conclude lower body strength improves in our total sample of studies. We also have our between-study heterogeneity information listed, and of particular note is <em>I</em><sup>2</sup>. Statistical heterogeneity is considered high when <em>I</em><sup>2</sup> &gt; 50%<sup>3</sup>, and we have a value of 99.6% suggesting considerable between-study heterogeneity. In these instances, further analysis may be worthwhile to determine studies that contribute most to heterogeneity and have a high influence on the overall result, such as leave-one-out-analysis<sup>4</sup>. Finally, we have our subgroup results for each method, and this is where things get a little more interesting! It appears <em>Method 1</em> results in a substantial improvement in lower body strength (↑ 32 kg) which is significant, whereas <em>Method 2</em> leads to a significant strength decrement (↓ 27 kg; must have been a bad training intervention). Although there are no <em>p</em>-values for each subgroup here, we know the results for these interventions are significant by looking at the 95% CI (no overlap), and this will become clearer in our forest plots. <em>Method 3</em> is less clear, though, given we have the 95% CI crossing 0. Differences between training interventions (subgroups) was also significant (<em>p</em> &lt; 0.0001; under <em>Test for subgroup differences</em>), so we may conclude that if you want to improve your lower body strength, train using <em>Method 1</em> and not <em>Method 2</em>!</p>
+</div>
+<div id="forest-plot" class="section level4">
+<h4>Forest plot</h4>
+<p>We have ran our meta-analysis and interpreted the output, but now we want to visualise our results for publication. We can create forest plots using the <code>forest()</code> function to do this. Here’s a basic example using our meta-analysis object (<code>ma</code>).</p>
+<pre class="r"><code>forest(ma,
+       layout = &quot;RevMan5&quot;)</code></pre>
+<p><img src="images/Forest_Plot_v1.png" /></p>
+<p>By only specifying <code>ma</code> and <code>layout</code> (Cochrane’s Review Manager 5), we get the above forest plot. You can see that our pretend studies and raw outcome data are divided into subgroups based on the intervention. Each study is represented by a point estimate, bounded by the 95% CI for the effect<sup>5</sup>. The square surrounding the point estimate relates to how much studies contribute to the summary effect, where larger squares contribute more (not shown too well in this mock example)<sup>5</sup>. The summary effect for each subgroup and overall is visualised as the diamond at the bottom of the plot<sup>5</sup>. This plot doesn’t look too appealing as it currently stands, so let’s work through some additional arguments to turn it into something more publishable. We’ll start by adding/modifying some labels and changing the number of decimals for the standard deviation and tau-squared to match those reported elsewhere on the plot.</p>
+<pre class="r"><code>forest(ma,
+       layout = &quot;RevMan5&quot;,
+       ### CHANGE IS HERE ###
+       print.byvar = FALSE,
+       lab.e = &quot;Post-intervention&quot;,
+       lab.c = &quot;Pre-intervention&quot;,
+       label.left = &quot;loss&quot;,
+       label.right = &quot;gain&quot;,
+       digits.sd = 2,
+       digits.tau2 = 2)</code></pre>
+<p><img src="images/Forest_Plot_v2.png" /></p>
+<p><code>print.byvar = FALSE</code> removes the “<em>method =</em>” from the subgroup labels, while we’ve changed the labels of our experimental and control groups to <strong>Post-intervention</strong> and <strong>Pre-intervention</strong>. <code>label.left = "loss"</code> and <code>label.right = "gain"</code> specifies a strength loss and gain following the training intervention on the plot’s <em>x</em>-axis. The spacing of columns and plot area looks a little tight for my liking, so let’s next adjust these to make for easier reading.</p>
+<pre class="r"><code>forest(ma,
+       layout = &quot;RevMan5&quot;,
+       print.byvar = FALSE,
+       lab.e = &quot;Post-intervention&quot;,
+       lab.c = &quot;Pre-intervention&quot;,
+       label.left = &quot;loss&quot;,
+       label.right = &quot;gain&quot;,
+       digits.sd = 2,
+       digits.tau2 = 2,
+       ### CHANGE IS HERE ###
+       colgap = &quot;0.5cm&quot;,
+       colgap.forest = &quot;1cm&quot;)</code></pre>
+<p><img src="images/Forest_Plot_v3.png" /></p>
+<p><code>colgap</code> and <code>colgap.forest</code> refer to the space between columns and those adjacent to the forest plot (in our case on the left). I think this reads easier now! Given some journals may not accept colour in certain plots, let’s next modify the colour of ours.</p>
+<pre class="r"><code>forest(ma,
+       layout = &quot;RevMan5&quot;,
+       print.byvar = FALSE,
+       lab.e = &quot;Post-intervention&quot;,
+       lab.c = &quot;Pre-intervention&quot;,
+       label.left = &quot;loss&quot;,
+       label.right = &quot;gain&quot;,
+       digits.sd = 2,
+       digits.tau2 = 2,
+       colgap = &quot;0.5cm&quot;,
+       colgap.forest = &quot;1cm&quot;,
+       ### CHANGE IS HERE ###
+       col.by = &quot;black&quot;,
+       col.square = &quot;black&quot;,
+       col.inside = &quot;black&quot;,
+       col.square.lines = &quot;black&quot;)</code></pre>
+<p><img src="images/Forest_Plot_v4.png" /></p>
+<p>Our subgroup information (<code>col.by</code>) and squares (<code>col.square</code>/<code>col.inside</code>/<code>col.square.lines</code>) are now black and this forest plot is nearing completion. To finish, I’m going to make a couple of statistical changes that are purely personal preference. I’m going to remove the overall summary measure and heterogeneity information (last two lines in the plot) and instead only report these for each subgroup.</p>
+<pre class="r"><code>forest(ma,
+       layout = &quot;RevMan5&quot;,
+       lab.e = &quot;Post-intervention&quot;,
+       lab.c = &quot;Pre-intervention&quot;,
+       label.left = &quot;loss&quot;,
+       label.right = &quot;gain&quot;,
+       digits.sd = 2,
+       digits.tau2 = 2,
+       colgap = &quot;0.5cm&quot;,
+       colgap.forest = &quot;1cm&quot;,
+       col.by = &quot;black&quot;,
+       col.square = &quot;black&quot;,
+       col.inside = &quot;black&quot;,
+       col.square.lines = &quot;black&quot;,
+       ### CHANGE IS HERE ###
+       test.effect.subgroup.random = TRUE,
+       overall = FALSE,
+       overall.hetstat = FALSE)</code></pre>
+<p><img src="images/Forest_Plot_v5.png" /></p>
+<p>We no longer have an additional diamond at the bottom of our forest plot representing the overall mean difference across all groups and we now have our significant results for <em>Method 1</em> (<em>p</em> &lt; 0.01) and <em>Method 2</em> (<em>p</em> &lt; 0.01) confirmed. All we need now is to save our plot as a high-resolution image and we’re set. We can do this with the following code.</p>
+<pre class="r"><code>png(filename = &quot;forest.png&quot;, width = 30, height = 18, units = &quot;cm&quot;,
+    res = 500)
+
+forest(ma,
+       layout = &quot;RevMan5&quot;,
+       lab.e = &quot;Post-intervention&quot;,
+       lab.c = &quot;Pre-intervention&quot;,
+       label.left = &quot;loss&quot;,
+       label.right = &quot;gain&quot;,
+       digits.sd = 2,
+       digits.tau2 = 2,
+       colgap = &quot;0.5cm&quot;,
+       colgap.forest = &quot;1cm&quot;,
+       col.by = &quot;black&quot;,
+       col.square = &quot;black&quot;,
+       col.inside = &quot;black&quot;,
+       col.square.lines = &quot;black&quot;,
+       test.effect.subgroup.random = TRUE,
+       overall = FALSE,
+       overall.hetstat = FALSE)
+
+dev.off()</code></pre>
+<p>Keep in mind that you’ll need to play around with <code>width</code> and <code>height</code> depending on the size of your own forest plot.</p>
+<p>So there we have it. We’ve taken a mock data set, meta-analysed it, determined <em>Method 1</em> is the best training intervention for improving lower body strength and created a forest plot to visualise our results - all in R! The customisations to these plots don’t stop here, though. There are many more arguments you can input into <code>forest</code> to further customise your plots just the way you like it. The example we’ve gone through here formed the basis of the forest plots I created for publication in <em>Sports Medicine</em>, and I hope these steps can provide a template for you creating your own. I recommend checking out <a href="https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/"><strong>Doing Meta-Analysis in R: A Hands-on Guide</strong></a> for a more detailed overview.</p>
+<div align="left">
+<p><font size="-1">1.  Schwarzer G. meta: an R package for meta-analysis. R News. 2007;7(3):40-5.<br>
+2.  Hedges LV, Vevea JL. Fixed-and random-effects models in meta-analysis. Psychological Methods. 1998;3(4):486-504.<br>
+3.  Higgins JP, Thompson SG, Deeks JJ, Altman DG. Measuring inconsistency in meta-analyses. British Medical Journal. 2003;327(7414):557-60.<br>
+4.  Viechtbauer W, Cheung MWL. Outlier and influence diagnostics for meta-analysis. Research Synthesis Methods. 2010;1(2):112-25.<br>
+5.  Lewis S, Clarke M. Forest plots: trying to see the wood and the trees. British Medical Journal. 2001;322(7300):1479-80.</p>
+</div>
