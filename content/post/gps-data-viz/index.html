@@ -1,0 +1,283 @@
+---
+date: "2022-02-20T00:00:00Z"
+draft: true
+featured: true
+highlight: true
+image:
+  caption: ""
+  focal_point: ""
+  placement: 2
+  preview_only: false
+lastmod: "2022-02-20T00:00:00Z"
+projects: []
+subtitle: "Create raincloud plots to visualise activity profile distribution"
+summary: "The first installment of a series showing how R can be used to visualise athlete data."
+tags:
+- "R"
+title: Visualising Athlete GPS Data in R
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div align="justify">
+
+<p>This post is the first in a continuing series for sports scientists showing different methods to visualise athlete data in R. It is important to effectively communicate data to fellow performance staff and coaches to help inform future decision making on athletes, and creating easy to interpret visualisations are useful for this. Working with athlete global positioning system (GPS) data is common for sports scientists, so this first installment shows how to use raincloud plots to visualise the distribution of an athlete’s activity profile. The method described below may also be useful for creating an athlete activity profile “blueprint” that may be used to compare current physical outputs against those typically observed. The plotting method described below uses the <code>ggdist</code> package and has been inspired by work from <a href="https://www.cedricscherer.com/2021/06/06/visualizing-distributions-with-raincloud-plots-and-how-to-create-them-with-ggplot2/"><strong>Cedric Scherer</strong></a> and <a href="https://www.brunomioto.com.br/home"><strong>Bruno Mioto</strong></a>. I encourage you to check out their work for further examples.</p>
+<p>I’m using the following packages for this demonstration. Remember to run <code>install.packages()</code> if you haven’t installed these previously.</p>
+<pre class="r"><code>library(tidyverse)
+library(ggdist)
+library(ggtext)
+library(ggthemes)
+library(ggrepel)
+library(patchwork)</code></pre>
+<p>I’m creating a pretend GPS dataset to use as an example here, but you can import your own using <code>read.csv()</code> or similar. I’ve created three seasons worth of GPS data (20 games per season) which has the cumulative total (<code>tot_dist</code>) and sprint (<code>spr_dist</code>) distances covered from half 1 to half 2 of, let’s say, a soccer match. Here, I’ve added each odd index (half 1) to its even counterpart value (half 2) to calculate the cumulative distance. However, your data may be displayed slightly differently depending on the GPS system you’re using.</p>
+<pre class="r"><code>set.seed(50)
+player &lt;- rep(rep(paste(&quot;Player&quot;, LETTERS[1:20]), each = 2), times = 60)
+season &lt;- rep(c(2019:2021), each = 800)
+game &lt;- rep(rep(c(1:20), each = 40), times = 3)
+half &lt;- rep(c(1:2), times = 1200)
+
+tot_dist &lt;- rnorm(n = 2400, mean = 5000, sd = 500)
+tot_dist[c(FALSE, TRUE)] &lt;- tot_dist[c(FALSE, TRUE)] + tot_dist[c(TRUE, FALSE)]
+
+spr_dist &lt;- rnorm(n = 2400, mean = 300, sd = 50)
+spr_dist[c(FALSE, TRUE)] &lt;- spr_dist[c(FALSE, TRUE)] + spr_dist[c(TRUE, FALSE)]
+
+gps &lt;- data.frame(player, season, game, half, tot_dist, spr_dist)
+gps$player &lt;- as.factor(gps$player)
+
+gps %&gt;% head(10)</code></pre>
+<pre><code>##      player season game half  tot_dist spr_dist
+## 1  Player A   2019    1    1  5274.835 283.6883
+## 2  Player A   2019    1    2  9854.033 578.9883
+## 3  Player B   2019    1    1  5016.499 316.0543
+## 4  Player B   2019    1    2 10278.574 576.3478
+## 5  Player C   2019    1    1  4136.198 346.7762
+## 6  Player C   2019    1    2  8997.266 657.9435
+## 7  Player D   2019    1    1  5180.414 227.4242
+## 8  Player D   2019    1    2  9884.958 501.1498
+## 9  Player E   2019    1    1  5487.795 295.1264
+## 10 Player E   2019    1    2  9764.920 618.6416</code></pre>
+<p>Next, is some simple data manipulation before we begin plotting for one athlete (<code>"Player A"</code>). I’m creating another variable within this code chunk called <code>jit</code> which is used to create a custom jitter effect for the points in the plot. Finally, I’m extracting the data belonging to the current/most recent match (<code>last_game</code>) which we’ll use to compare against this athlete’s activity profile blueprint.</p>
+<pre class="r"><code>plot_dat &lt;- gps %&gt;%
+  filter(player == &quot;Player A&quot;) %&gt;%
+  filter(half == 2)
+
+set.seed(200)
+plot_dat$jit &lt;- runif(nrow(plot_dat), -0.1, 0.1)
+
+last_game &lt;- plot_dat %&gt;%
+  tail(1)
+
+plot_dat &lt;- plot_dat %&gt;%
+  head(-1) # Remove last_game from plot_dat.</code></pre>
+<div id="plot" class="section level4">
+<h4>Plot</h4>
+<p>I’m going to first plot the distribution of total distance covered in a match for <code>"Player A"</code> using the <code>ggdist</code> package and some other <code>ggplot2</code> features. The first lines of code below compute the percentiles of <code>tot_dist</code> which I’m using to apply a custom fill aesthetic to <code>stat_halfeye</code> (similar to work by <a href="https://www.brunomioto.com.br/home"><strong>Bruno Mioto</strong></a>) to show the proportion of total distances covered that are greater or less than the current total distance covered. I’ve set <code>justification = -0.3</code> to shift the raincloud plot to the right and used <code>.width = 0</code> and <code>point_colour = NA</code> so I can include my own boxplot next to it (eventually it will be underneath).</p>
+<pre class="r"><code>pct_td &lt;- quantile(plot_dat$tot_dist,
+                   stats::ecdf(plot_dat$tot_dist)(last_game$tot_dist),
+                   type = 1)
+
+ggplot(data = plot_dat, aes(x = player, y = tot_dist)) +
+  stat_halfeye(aes(fill = stat(y &lt; pct_td)),
+               adjust = 0.5,
+               width = 0.4,
+               .width = 0,
+               point_colour = NA,
+               justification = -0.3,
+               alpha = 0.7) +
+  scale_fill_manual(values = c(&quot;FALSE&quot; = &quot;gray48&quot;,
+                               &quot;TRUE&quot; = &quot;#FF8200&quot;))</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-4-1.png" width="672" /></p>
+<p>The next step is to add the boxplot using <code>geom_boxplot</code> and then the points representing the total distances covered from each game over the top. Rather than the points being in a straight line, the <code>jit</code> variable created above will add some random variation to each point’s location to aid the readability of the plot. All points are plotted with the first <code>geom_point</code> layer, and then only those belonging to the most recent season (<code>2021</code>) are plotted with a different fill in the second. Note, there’s various ways to achieve this same end result, this is just the method used here.</p>
+<pre class="r"><code>ggplot(data = plot_dat, aes(x = player, y = tot_dist)) +
+  stat_halfeye(aes(fill = stat(y &lt; pct_td)),
+               adjust = 0.5,
+               width = 0.4,
+               .width = 0,
+               point_colour = NA,
+               justification = -0.3,
+               alpha = 0.7) +
+  scale_fill_manual(values = c(&quot;FALSE&quot; = &quot;gray48&quot;,
+                               &quot;TRUE&quot; = &quot;#FF8200&quot;)) +
+  ### CHANGE IS HERE ###
+  geom_boxplot(fill = &quot;#FF8200&quot;,
+               width = 0.1,
+               alpha = 0.1,
+               outlier.shape = NA) +
+  geom_point(aes(x = as.numeric(player)+jit),
+             fill = &quot;#58595B&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3,
+             alpha = 0.6) +
+  geom_point(aes(x = as.numeric(player)+jit,
+                 y = ifelse(season == max(season), tot_dist, NA)),
+             fill = &quot;#FF8200&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-5-1.png" width="672" /></p>
+<p>This plot is beginning to take shape! Before some formatting edits to finish things off, we need to include the data belonging to the current/most recent match (<code>last_game</code>). I’m doing this by adding two more <code>geom_point</code> layers, one for the raincloud plot and another underneath. I’ve set these points larger in size so they stand out a little more for comparison and included a text label to the point in the boxplot.</p>
+<pre class="r"><code>ggplot(data = plot_dat, aes(x = player, y = tot_dist)) +
+  stat_halfeye(aes(fill = stat(y &lt; pct_td)),
+               adjust = 0.5,
+               width = 0.4,
+               .width = 0,
+               point_colour = NA,
+               justification = -0.3,
+               alpha = 0.7) +
+  scale_fill_manual(values = c(&quot;FALSE&quot; = &quot;gray48&quot;,
+                               &quot;TRUE&quot; = &quot;#FF8200&quot;)) +
+  geom_boxplot(fill = &quot;#FF8200&quot;,
+               width = 0.1,
+               alpha = 0.1,
+               outlier.shape = NA) +
+  geom_point(aes(x = as.numeric(player)+jit),
+             fill = &quot;#58595B&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3,
+             alpha = 0.6) +
+  geom_point(aes(x = as.numeric(player)+jit,
+                 y = ifelse(season == max(season), tot_dist, NA)),
+             fill = &quot;#FF8200&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3) +
+  ### CHANGE IS HERE ###
+  geom_text_repel(data = last_game, aes(x = as.numeric(player)+jit,
+                                             label = &quot;Current&quot;),
+                    nudge_x = -0.2-last_game$jit) +
+  geom_point(data = last_game, aes(x = as.numeric(player)+jit,
+                                   y = tot_dist),
+             fill = &quot;white&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 5) +
+  geom_point(data = last_game, aes(x = as.numeric(player) + 0.11,
+                                   y = tot_dist),
+             fill = &quot;white&quot;,
+             color = &quot;black&quot;,
+             shape = 24,
+             size = 5,
+             stat = &quot;unique&quot;)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-6-1.png" width="672" /></p>
+<p>Some final touches to the plot include customising the number of breaks on the <em>y</em> axis, calling <code>coord_flip</code> so the plot is horizontal rather than vertical, adding/removing axis titles/text and editing the plot theme. I’m choosing <code>theme_fivethirtyeight</code> from the <code>ggthemes</code> package as I like its simple look and its one I use often for some of my other analytics work.</p>
+<pre class="r"><code>p1 &lt;- ggplot(data = plot_dat, aes(x = player, y = tot_dist)) +
+  stat_halfeye(aes(fill = stat(y &lt; pct_td)),
+               adjust = 0.5,
+               width = 0.4,
+               .width = 0,
+               point_colour = NA,
+               justification = -0.3,
+               alpha = 0.7) +
+  scale_fill_manual(values = c(&quot;FALSE&quot; = &quot;gray48&quot;,
+                               &quot;TRUE&quot; = &quot;#FF8200&quot;)) +
+  geom_boxplot(fill = &quot;#FF8200&quot;,
+               width = 0.1,
+               alpha = 0.1,
+               outlier.shape = NA) +
+  geom_point(aes(x = as.numeric(player)+jit),
+             fill = &quot;#58595B&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3,
+             alpha = 0.6) +
+  geom_point(aes(x = as.numeric(player)+jit,
+                 y = ifelse(season == max(season), tot_dist, NA)),
+             fill = &quot;#FF8200&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3) +
+  geom_text_repel(data = last_game, aes(x = as.numeric(player)+jit,
+                                             label = &quot;Current&quot;),
+                    nudge_x = -0.2-last_game$jit) +
+  geom_point(data = last_game, aes(x = as.numeric(player)+jit,
+                                   y = tot_dist),
+             fill = &quot;white&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 5) +
+  geom_point(data = last_game, aes(x = as.numeric(player) + 0.11,
+                                   y = tot_dist),
+             fill = &quot;white&quot;,
+             color = &quot;black&quot;,
+             shape = 24,
+             size = 5,
+             stat = &quot;unique&quot;) +
+  ### CHANGE IS HERE ###
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
+  coord_flip() +
+  theme_fivethirtyeight() +
+  labs(y = &quot;Total Distance (m)&quot;) +
+  theme(legend.position = &quot;none&quot;,
+        axis.title.x = element_text(face = &quot;bold&quot;),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank())
+
+p1</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="672" /></p>
+<p>We can, of course, repeat the steps above to plot the distribution of sprint distance (<code>spr_dist</code>) for this athlete.</p>
+<pre class="r"><code>pct_spr &lt;- quantile(plot_dat$spr_dist,
+                       stats::ecdf(plot_dat$spr_dist)(last_game$spr_dist),
+                       type = 1)
+
+p2 &lt;- ggplot(data = plot_dat, aes(x = player, y = spr_dist)) +
+  stat_halfeye(aes(fill = stat(y &lt; pct_spr)),
+               adjust = 0.5,
+               width = 0.4,
+               .width = 0,
+               point_colour = NA,
+               justification = -0.3,
+               alpha = 0.7) +
+  scale_fill_manual(values = c(&quot;FALSE&quot; = &quot;gray48&quot;,
+                               &quot;TRUE&quot; = &quot;#FF8200&quot;)) +
+  geom_boxplot(fill = &quot;#FF8200&quot;,
+               width = 0.1,
+               alpha = 0.1,
+               outlier.shape = NA) +
+  geom_point(aes(x = as.numeric(player)+jit),
+             fill = &quot;#58595B&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3,
+             alpha = 0.6) +
+  geom_point(aes(x = as.numeric(player)+jit,
+                 y = ifelse(season == max(season), spr_dist, NA)),
+             fill = &quot;#FF8200&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 3) +
+  geom_text_repel(data = last_game, aes(x = as.numeric(player)+jit,
+                                             label = &quot;Current&quot;),
+                    nudge_x = -0.2-last_game$jit) +
+  geom_point(data = last_game, aes(x = as.numeric(player)+jit,
+                                   y = spr_dist),
+             fill = &quot;white&quot;,
+             colour = &quot;black&quot;,
+             shape = 21,
+             size = 5) +
+  geom_point(data = last_game, aes(x = as.numeric(player) + 0.11,
+                                   y = spr_dist),
+             fill = &quot;white&quot;,
+             color = &quot;black&quot;,
+             shape = 24,
+             size = 5,
+             stat = &quot;unique&quot;) +
+  scale_y_continuous(breaks = scales::pretty_breaks(n = 6)) +
+  coord_flip() +
+  theme_fivethirtyeight() +
+  labs(y = &quot;Total Sprint Distance (m)&quot;) +
+  theme(legend.position = &quot;none&quot;,
+        axis.title.x = element_text(face = &quot;bold&quot;),
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank())
+
+p2</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p>We could then plot both distributions side-by-side using the <code>patchwork</code> package.</p>
+<pre class="r"><code>p1 + p2</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>There you have it! This is just one way sports scientists may consider visualising their athlete GPS data to compare an athlete’s current match physical output versus what they typically do. Plotting data this way may facilitate communication between performance staff and inform training interventions based on what the athlete did. Although this is by no means the only plotting method to achieve this, hopefully this brief demonstration shows what we can do with the <code>ggdist</code> package in R and how it may be useful in sport.</p>
+</div>
