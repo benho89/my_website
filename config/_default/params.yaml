@@ -16,7 +16,7 @@ site_type: Person
 local_business_type: ''
 org_name: ''
 description: ''
-twitter: ''
+twitter: 'BenHorsley89'
 
 # Contact (edit or remove options as required)
 
@@ -134,7 +134,7 @@ map:
 marketing:
   google_analytics: 'G-WX6NK6Q4RV'
   google_tag_manager: ''
-  google_site_verification: ''
+  google_site_verification: 'google-site-verification=w4qul5Fd5k1IYEJPnxxyCtRmTukuvFY8LWnuNOACE4Q'
   baidu_site_verification: ''
   baidu_tongji: ''
 cms:
