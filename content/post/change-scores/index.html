@@ -1,0 +1,193 @@
+---
+date: '2022-04-27T00:00:00Z'
+draft: false
+featured: false
+highlight: true
+image:
+  caption: ''
+  focal_point: ''
+  placement: 2
+  preview_only: false
+lastmod: '2022-04-27T00:00:00Z'
+projects: []
+subtitle: Use conditional colours to visualise meaningful change in athlete performance tests
+summary: This post covers concepts of reliability and how to use this data to visualise changes in performance tests.
+tags: R
+title: Visualising Athlete Change Scores
+---
+
+<script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
+
+
+<div align="justify">
+
+<p>In my last post, I covered methods to visualise test battery data and rank a group of athletes based on their scores. Presuming any performance tests are repeated to assess progression and/or regression, this issue of <strong><em>Visualising Athlete Data in R</em></strong> addresses some concepts of reliability and how we may use this data to plot athlete change scores.</p>
+<p>Reliability refers to the reproducibility of a measure and is integral to tracking changes in individual athletes<sup>1</sup>. Performance testing is often done numerous times per year to assess changes in a variety of physical capacities, but there’s almost always some degree of variation that exists between test results whenever an athlete is tested. Therefore, its imperative to establish reliability - typically from repeated trials - to better understand the changes that are meaningful and not simply due to random variation<sup>2</sup>.</p>
+<p>Say we have a squad of 20 athletes who perform a countermovement jump (CMJ) as part of their test battery, and we want to establish the reliability of repeated measures “in-house” to confidently determine when a practically meaningful change in jump height (cm) has occurred. We may take measures on consecutive days during the preseason, for example, where the data - <strong>which is simulated for the purpose of this post</strong> - may look something like this.</p>
+<pre class="r"><code>set.seed(20)
+athlete &lt;- paste(&quot;Athlete&quot;, 1:20)
+trial_1 &lt;- round(rnorm(20, 42, 2), 1)
+trial_2 &lt;- round(trial_1 + runif(20, -2.7, 2.7), 1)
+trial_3 &lt;- round(trial_2 + runif(20, -2.7, 2.7), 1)
+
+trials &lt;- data.frame(athlete, trial_1, trial_2, trial_3)
+head(trials)</code></pre>
+<pre><code>##     athlete trial_1 trial_2 trial_3
+## 1 Athlete 1    44.3    44.8    44.3
+## 2 Athlete 2    40.8    38.3    36.2
+## 3 Athlete 3    45.6    45.3    47.7
+## 4 Athlete 4    39.3    39.1    36.7
+## 5 Athlete 5    41.1    42.5    44.9
+## 6 Athlete 6    43.1    42.8    40.3</code></pre>
+<p>We can establish the typical error (<code>te</code>) that exists from our repeated trials and use this to inform how much we expect our future test scores to vary<sup>1</sup>. For example, when an athlete is retested, their CMJ result will include a +/- to represent the variability in their score. To calculate the <code>te</code>, the code below first determines the difference from trial to trial and then computes the standard deviation (SD) of the difference scores, the mean of which is divided by the square root of 2<sup>1</sup>.</p>
+<pre class="r"><code>change_1_to_2 &lt;- trials$trial_2 - trials$trial_1
+change_2_to_3 &lt;- trials$trial_3 - trials$trial_2
+
+l &lt;- list(change_1_to_2, change_2_to_3)
+
+te &lt;- round(mean(sapply(l, sd)) / sqrt(2), 1)
+te</code></pre>
+<pre><code>## [1] 1.1</code></pre>
+<p>The result is a <code>te</code> of 1.1 cm. We can also report this “error” as a percentage by calculating the coefficient of variation (<code>cv</code>) which may be determined as the between-trial SD (<code>trial_1</code>, <code>trial_2</code> and <code>trial_3</code>) divided by the between-trial mean, multiplied by 100.</p>
+<pre class="r"><code>library(matrixStats)
+
+cv &lt;- round(mean((rowSds(as.matrix(trials[, c(2:4)])) /
+                 rowMeans(trials[, c(2:4)])) * 100), 1)
+cv</code></pre>
+<pre><code>## [1] 3</code></pre>
+<p>I’m using the <code>rowSds()</code> function from <code>matrixStats</code> and <code>rowMeans()</code> above to first determine each individual athlete’s <code>cv</code> before taking the group mean. The result produces a <code>cv</code> of 3% which is pretty low.</p>
+<p>We can use the <code>te</code> or <code>cv</code> to assist our interpretation of an athlete’s change score (some examples of how are provided below). However, another useful statistical measure for assessing change from test to test is the smallest worthwhile change (<code>swc</code>)<sup>3</sup>. Rather than representing the error in a test like the <code>te</code> and <code>cv</code> do, the <code>swc</code> refers to the smallest practically important change in a measure and may be used as a threshold value to determine if a real change in performance has occurred. The <code>swc</code> is determined from reliability data, where a default method for calculation is 0.2 multiplied by the between-subject SD of test scores<sup>2,3</sup>. I’ve defined this in a custom function (<code>f</code>) below and applied this to the original <code>trials</code> dataset containing our repeated trials.</p>
+<pre class="r"><code>f &lt;- function(x) { 0.2 * sd(x) }
+swc &lt;- round(mean(apply(trials[c(2:4)], 2, f)), 1)
+swc</code></pre>
+<pre><code>## [1] 0.5</code></pre>
+<p>Here, we have a <code>swc</code> of 0.5 cm for our simulated data, so an athlete’s next CMJ score would need to at least exceed this threshold before we can confidently conclude there’s been a meaningful performance change from test to retest.</p>
+<p>Now that we have conducted a reliability analysis, we can use the data to assess performance changes and plot this in R. The following provides some examples of how to visualise change in <code>ggplot</code> from our CMJ example and use conditional colours that reflect whether there’s been an improvement, decrement or no change in performance.</p>
+<div id="plotting" class="section level3">
+<h3>Plotting</h3>
+<p>For the purpose of this mock scenario, I’m taking each athlete’s best result (<code>best</code>) from their reliability trials using <code>pmax()</code> and including this in a new data frame alongside the variable <code>retest</code> which represents jump height at, let’s say, the end of pre-season. I’ve set limits of -3 and +4 cm as arguments in <code>runif()</code>, and although these values may seem extreme in terms of reflecting changes in jump height across a pre-season, they’re simply used to illustrate a point in this tutorial.</p>
+<pre class="r"><code>best &lt;- pmax(trial_1, trial_2, trial_3)
+
+set.seed(40)
+retest &lt;- round(best + runif(20, -3, 4), 1)
+
+dat &lt;- data.frame(athlete, best, retest)</code></pre>
+<p>The last step in preparing the data for plotting is to calculate each athlete’s change score in raw and percentage units and assign a colour value based on their result. I’m using your typical traffic light system here, where red denotes a decline in performance, green an improvement and orange as stable/unclear. For example:</p>
+<ul>
+<li>If the <code>change</code> is -2.3 cm and the <code>te</code> is ±1.1 cm (i.e. -1.2 to -3.4 cm), we can <strong><em>loosely</em></strong> describe the change as a <span style="color: red;"><b>decrease</b></span> in performance.</li>
+<li>If the <code>change</code> is 3.7 cm and the <code>te</code> is ±1.1 cm (i.e. 2.6 to 4.8 cm), we can <strong><em>loosely</em></strong> describe the change as an <span style="color: green;"><b>increase</b></span> in performance.</li>
+<li>If the <code>change</code> is 0.2 cm and the <code>te</code> is ±1.1 cm (i.e. -0.9 to 1.3 cm), we can refer to this change as <span style="color: orange;"><b>stable/unclear</b></span> due to the lower and upper limits crossing 0.</li>
+</ul>
+<p>You’ll note the nested <code>ifelse()</code> functions to conditionally assign one of these three colour values to every data point, where we can use this <code>colour</code> variable as one of our <code>aes()</code> arguments in <code>ggplot</code> to easily represent the colours based on their values. We can also use the <code>reorder()</code> function on <code>athlete</code> to order athletes in the plots based on their change score.</p>
+<pre class="r"><code>library(tidyverse)
+
+dat &lt;- dat %&gt;%
+  mutate(change = retest - best,
+         pct_change = round(((best - retest) / best) * -100, 1),
+         colour = ifelse(change + te &lt; swc * -1, &quot;darkred&quot;,
+                         ifelse(change - te &gt; swc, &quot;darkgreen&quot;, &quot;orange&quot;)),
+         athlete = reorder(athlete, change))
+head(dat)</code></pre>
+<pre><code>##     athlete best retest change pct_change    colour
+## 1 Athlete 1 44.8   46.6    1.8        4.0 darkgreen
+## 2 Athlete 2 40.8   43.9    3.1        7.6 darkgreen
+## 3 Athlete 3 47.7   49.5    1.8        3.8 darkgreen
+## 4 Athlete 4 39.3   37.1   -2.2       -5.6   darkred
+## 5 Athlete 5 44.9   43.3   -1.6       -3.6   darkred
+## 6 Athlete 6 43.1   43.3    0.2        0.5    orange</code></pre>
+<p>Now that our data is prepared for plotting, let’s have a look at some examples that you may consider for visualising change scores.</p>
+<div id="example-1" class="section level6">
+<h6>Example 1</h6>
+<p>Dumbbell plots are a neat way to visualise change between two data points, such as between test-retest CMJ scores, and this can easily be done with <code>geom_dumbbell()</code> from the <code>ggalt</code> package. However, I’m creating a kind of custom dummbbell plot by adopting an approach I’ve used previously for some of my other analytics work. This requires the <code>ggforce</code> package which I’m simply using as I prefer the way the colours are visualised. Here’s the code.</p>
+<pre class="r"><code>library(ggforce)
+
+ggplot(dat) +
+  geom_link(aes(x = best, xend = retest, y = athlete, yend = athlete,
+                colour = colour, alpha = stat(index)),
+            show.legend = FALSE, size = 6, n = 500) +
+  scale_colour_identity() +
+  geom_point(aes(x = best, y = athlete, colour = colour), shape = 19,
+             size = 5, alpha = 0.6) +
+  scale_x_continuous(limits = c(36, 50),
+                     breaks = scales::pretty_breaks(n = 8)) +
+  theme_minimal() +
+  labs(x = &quot;CMJ Height (cm)&quot;) +
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        axis.title.x = element_text(face = &quot;bold&quot;),
+        axis.title.y = element_blank()) +
+  ### LABELS ###
+  geom_text(data = subset(dat, pct_change &lt; cv * -1),
+            aes(x = retest, y = athlete, fontface = &quot;bold&quot;,
+                label = paste0(pct_change, &quot;%&quot;)), color = &quot;darkred&quot;,
+                nudge_x = -0.3) +
+  geom_text(data = subset(dat, pct_change &gt; cv),
+            aes(x = retest, y = athlete, fontface = &quot;bold&quot;,
+                label = paste0(&quot;+&quot;, pct_change, &quot;%&quot;)), color = &quot;darkgreen&quot;,
+            nudge_x = 0.3) +
+  geom_text(data = subset(dat, pct_change &lt; 0 &amp; pct_change &gt;= cv * -1),
+            aes(x = retest, y = athlete, fontface = &quot;bold&quot;,
+                label = paste0(round(pct_change, 1), &quot;%&quot;)), color = &quot;orange&quot;,
+            nudge_x = -0.3) +
+  geom_text(data = subset(dat, pct_change &gt; 0 &amp; pct_change &lt;= cv),
+            aes(x = retest, y = athlete, fontface = &quot;bold&quot;,
+                label = paste0(&quot;+&quot;, round(pct_change, 1), &quot;%&quot;)),
+            color = &quot;orange&quot;, nudge_x = 0.3)</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-7-1.png" width="1248" /></p>
+<p><code>geom_link()</code> connects two data points much like the way <code>geom_dumbbell()</code> does. The points represent each athlete’s baseline CMJ result - their <code>best</code> from the reliability trials - while the end of the link is their <code>retest</code> score. The sequential progression of the colours in the direction of the link (<code>best</code> → <code>retest</code>) is something I personally really like here. The links are based on the raw CMJ values, but I’m reporting the labels in <code>geom_text()</code> as a percentage change.</p>
+</div>
+<div id="example-2" class="section level6">
+<h6>Example 2</h6>
+<p>We could also use a similar approach to plot the percentage change (<code>pct_change</code>) from <code>best</code> to <code>retest</code> relative to 0.</p>
+<pre class="r"><code>ggplot(dat) +
+  theme_minimal() +
+  geom_rect(aes(x = pct_change, y = athlete), xmin = -3, xmax = 3,
+                ymin = as.numeric(dat$athlete[[13]]) - 0.6,
+                ymax = as.numeric(dat$athlete[[18]]) + 0.6,
+            fill = &quot;#F5F5F5&quot;, alpha = 0.1) +
+  geom_vline(xintercept = c(-3, 0, 3), linetype = &quot;dashed&quot;, size = 0.2) +
+  geom_link(aes(x = 0, xend = pct_change, y = athlete, yend = athlete,
+                colour = colour, alpha = stat(index)),
+            show.legend = FALSE, size = 5, n = 600) +
+  scale_colour_identity() +
+  scale_x_continuous(limits = c(-8, 10),
+                     breaks = scales::pretty_breaks(n = 11)) +
+  labs(x = &quot;Percentage Change in Jump Height (%)&quot;) +
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        axis.title.x = element_text(face = &quot;bold&quot;),
+        axis.title.y = element_blank())</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-8-1.png" width="672" /></p>
+<p>Again, I’m preferring the sequential colours with <code>geom_link()</code> over a traditional horizontal bar plot using <code>geom_col()</code>. We can compare visually our change scores relative to the <code>cv</code> as represented by the shaded area (<code>geom_rect()</code>) and vertical lines (<code>geom_vline()</code>).</p>
+</div>
+<div id="example-3" class="section level6">
+<h6>Example 3</h6>
+<p>It may also be useful to plot the <code>swc</code> to visualise the threshold value that represents the smallest important effect when monitoring changes in performance tests. We can use the same approach as the example above by designating the boundaries of the <code>swc</code> with <code>geom_rect()</code> to visualise this threshold and plot points with their respective “uncertainty” (<code>te</code>) using <code>geom_linerange()</code>.</p>
+<pre class="r"><code>ggplot(dat) +
+  theme_minimal() +
+  geom_rect(aes(x = change, y = athlete), xmin = -0.5, xmax = 0.5,
+            ymin = as.numeric(dat$athlete[[13]]) - 0.6,
+            ymax = as.numeric(dat$athlete[[18]]) + 0.6,
+            fill = &quot;#F5F5F5&quot;, alpha = 0.2) +
+  geom_vline(xintercept = c(-0.5, 0, 0.5), linetype = &quot;dashed&quot;, size = 0.2) +
+  geom_linerange(aes(xmin = change - te, xmax = change + te, y = athlete,
+                     colour = colour), size = 1.5, alpha = 0.8) +
+  scale_colour_identity() +
+  geom_point(aes(x = change, y = athlete, fill = colour), shape = 21,
+             size = 4) +
+  scale_fill_identity() +
+  scale_x_continuous(breaks = scales::pretty_breaks(n = 9)) +
+  labs(x = &quot;Change in Jump Height (cm)&quot;) +
+  theme(panel.grid.minor.x = element_blank(),
+        panel.grid.major.y = element_blank(),
+        axis.title.x = element_text(face = &quot;bold&quot;),
+        axis.title.y = element_blank())</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-9-1.png" width="672" /></p>
+<p>We can set the uncertainty for each athlete’s test result by subtracting and adding the <code>te</code> to the raw change score in the <code>xmin =</code> and <code>xmax =</code> arguments, respectively. As you’ll see, those data points crossing the <code>swc</code> are coloured orange to denote a trivial or unclear change in jump height.</p>
+<p>Hopefully, these examples have given you some ideas as to how you may visualise change scores for your athletes and lean on fundamental reliability concepts to inform your interpretation. There are many ways to customise these plotting examples further beyond what I’ve highlighted here, so be sure to give these a try using your own data.</p>
+<div align="left">
+<p><font size="-1">1.  Hopkins, W.G., Measures of reliability in sports medicine and science. Sports Medicine, 2000. 30(1): p. 1-15.<br>
+2. Cormack, S.J., et al., Reliability of measures obtained during single and repeated countermovement jumps. International Journal of Sports Physiology and Performance, 2008. 3(2): p. 131-144.<br>
+3. Tofari, P.J., et al., A self-paced intermittent protocol on a non-motorised treadmill: a reliable alternative to assessing team-sport running performance. Journal of Sports Science and Medicine, 2015. 14(1): p. 62-68.<br></p>
+</div>
+</div>

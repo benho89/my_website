@@ -9,7 +9,7 @@ headless: true
 # Order that this section appears on the page.
 weight: 30
 
-title: <b>Blog</b>
+title: <b>Posts</b>
 subtitle:
 
 content:
