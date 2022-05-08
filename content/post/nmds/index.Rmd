@@ -1,0 +1,135 @@
+---
+date: '2022-05-08T00:00:00Z'
+draft: false
+featured: false
+highlight: true
+image:
+  caption: ''
+  focal_point: ''
+  placement: 2
+  preview_only: false
+lastmod: '2022-05-08T00:00:00Z'
+projects: []
+subtitle: Plot relationships between training drills based on athlete activity profile data using non-metric multidimensional scaling
+summary: Learn how to easily apply non-metric multidimensional scaling to quantify and visualise the (dis)similarity between training drills based on athlete activity profile data.
+tags: R
+title: An Ordination Visualisation to Profile Training
+---
+<div align="justify">
+Athlete activity profile data, such as that from global positioning systems (GPS) and accelerometers, is often used to quantify physical output during training<sup>1,2</sup>. This data may be aggregated to report the mean distances covered and speeds reached across training as a whole and within specific drills. Rather than simply reporting data this way, this edition of ***Visualising Athlete Data in R*** covers a technique that formed part of my Honours research (unpublished) to quantify and visualise the (dis)similarity between training drills based on physical output - as measured from GPS and accelerometers. Its hoped what's covered here may add value to a practitioner's decision making when designing training around specific activity targets (total distance, high-speed running etc.).
+
+### Non-metric multidimensional scaling
+
+Its typical to profile training based on a variety of GPS- and accelerometer-derived variables, and we can use this multivariate data to spatially illustrate the relationships between different drills with non-metric multidimensional scaling (nMDS)<sup>3</sup>. Often used in ecology, nMDS is an ordination technique that takes a multivariate dataset and calculates the distances between samples and schematically represents the (dis)similarity in a two-dimensional space<sup>3</sup>. From an nMDS output we can get a sense of "likeness", whereby similar training drills, for example, are located proximal to each other and dissimilar drills are observed further apart on an ordination plot<sup>3</sup>. This technique has previously been applied in sport to trace team match performance<sup>4</sup>, and it may also be useful in highlighting the (dis)similarity between drills that could aid the prescription of training. The following content will provide a (very) brief overview of how we can run nMDS in R using *simulated* GPS and accelerometer data. For a more comprehensive overview of nMDS, I encourage you to check out other resources online.
+
+#### Example
+
+Just as I have throughout my ***Visualising Athlete Data in R*** series, I'm simulating some data for the purpose of this example. The code below produces a 20 x 6 data frame containing drills and four commonly used variables describing the average physical output from each one. I've included the `drill_type` variable to colour the drill labels by their type when we eventually get to plotting.
+
+```{r error=FALSE, message=FALSE, warning=FALSE}
+library(tidyverse)
+
+set.seed(450)
+drill <- paste("Drill", 1:20)
+drill_type <- rep(c("Passing & Receiving", "Running", "Defensive", "Tackling"),
+                  each = 5)
+tot_dist <- c(rnorm(20, 1000, 400))
+metres_per_min <- c(rnorm(20, 100, 30))
+hsr <- c(rnorm(20, 300, 100))
+load_per_min <- c(rnorm(20, 12, 3))
+
+dat <- data.frame(drill, drill_type, tot_dist, metres_per_min, hsr,
+                  load_per_min)
+
+dat <- dat %>% mutate_if(is.numeric, round)
+
+head(dat)
+```
+
+Its important to keep in mind here that this dataset isn't real and its use is only intended to illustrate the functionality of nMDS. If you're collecting your own GPS and accelerometer data, you'll most likely have this archived in a neatly formatted spreadsheet where the values will be much more representative of actual training than they are here.
+
+In order to perform nMDS, our data frame needs to contain all numeric variables, so I'm dropping `drill` and `drill_type` momentarily using the `-` symbol in `select()` and will call on these again soon.
+
+```{r}
+dat_num <- dat %>%
+  select(-c(drill, drill_type))
+```
+
+Now we're ready to run our nMDS analysis. To do this, I'm using the `metaMDS()` function from the `vegan` package, so make sure to install this if you haven't already.
+
+```{r message=FALSE, warning=FALSE}
+library(vegan)
+
+set.seed(20)
+nmds <- metaMDS(dat_num)
+```
+
+The nMDS algorithm runs 20 times to find the smallest stress value which describes the goodness-of-fit of taking multidimensional data and squashing it down to only two dimensions. Lower stress values suggest a better fit of the data<sup>3</sup>, and here we have a stress of 0.107 representing a fair fit.
+
+By calling `str()`, you'll notice that `nmds` contains a list of a whole bunch of other objects.
+
+```{r}
+str(nmds)
+```
+
+For visualising our mock training data, I only need the `$points` object from `nmds` which contains the positions in both MDS1 and MDS2 axes for each of the drills. I'm storing these points in a new data frame and rejoining the variables `drill` and `drill_type` from the original data.
+
+```{r}
+plot_dat <- as.data.frame(nmds$points)
+
+plot_dat$drill <- dat$drill
+plot_dat$drill_type <- dat$drill_type
+
+head(plot_dat)
+```
+
+We can now go ahead and start plotting!
+
+#### Plot
+
+Creating the nMDS plot is relatively straightforward once your data is set out correctly. Here's the code.
+
+```{r message=FALSE}
+library(RColorBrewer)
+library(scales)
+
+ggplot(data = plot_dat, aes(x = MDS1, y = MDS2, label = drill)) +
+  geom_path(size = 0.1) +
+  geom_label(aes(fill = drill_type), alpha = 0.6, color = "black",
+             fontface = "bold") +
+  scale_fill_manual(values = brewer.pal(name = "Set1", n = 4)) +
+  scale_x_continuous(limits = c(-0.35, 0.15),
+                     breaks = pretty_breaks(n = 8),
+                     labels = number_format(accuracy = 0.01)) +
+  scale_y_continuous(breaks = pretty_breaks(n = 5),
+                     labels = number_format(accuracy = 0.01)) +
+  theme_minimal() +
+  guides(fill = guide_legend(title = "Drill Type",
+                             title.position = "top",
+                             title.hjust = 0.5,
+                             override.aes = aes(label = ""))) +
+  theme(panel.grid.minor = element_blank(),
+        plot.background = element_rect(fill = "white", colour = NA),
+        legend.position = "top",
+        legend.title = element_text(face = "bold", size = 10),
+        legend.text = element_text(size = 8),
+        legend.key = element_rect(colour = "black"))
+```
+
+Here, I'm using `geom_label()` to plot the name of each `drill` in their respective position and, as alluded to above, applying a fill based on `drill_type` so we can see how these interact with each other also. I'm not personally a fan of the default colour scheme in `ggplot2`, so I'm using a different palette from the `RColorBrewer` package to customise this within `scale_fill_manual()`. The `n = 4` in `brewer.pal()` represents the four different drill types so there's a unique colour for each one. A neat function called `number_format()` from `scales` allows you to format the axis labels to the desired number of decimal places, where I'm using two (`accuracy = 0.01`) for consistency.
+
+#### Interpretation
+
+Drills that are clustered together on the ordination surface are similar based on the physical output they tend to elicit, whereas drills that are further apart, such as ***Drill 20*** versus ***Drill 13***, are dissimilar. In this mock example, we can say ***Drills 1, 3, 5, 6, 7, 12, 14*** and ***19*** share an activity profile that is alike and we may expect the distances covered - including at high-speed - and accelerometer load accumulated to be similar amongst these drills. Conversely, despite ***Drills 16, 17, 18, 19 and 20*** being tackling drills, they all produce a different physical output compared to one another based on their proximity on the plot.
+
+#### Application
+
+This is a relatively simple method to visualise the relationships between training drills using GPS and/or accelerometer data. A drill ordination plot may provide insight to coaches and practitioners about how athlete activity profile differs between drills and may be referred to when prescribing training.
+
+If you collect GPS and/or accelerometer data during training and use this to profile your drills, give this plotting technique a try and hopefully it adds some value to your decision making around training prescription.
+
+<div align="left">
+<font size="-1">1.&nbsp;&nbsp;Boyd, L.J., K. Ball, and R.J. Aughey, Quantifying external load in Australian football matches and training using accelerometers. International Journal of Sports Physiology and Performance, 2013. 8(1): p. 44-51.<br>
+2.&nbsp;&nbsp;Corbett, D.M., et al., Development of physical and skill training drill prescription systems for elite Australian Rules football. Science and Medicine in Football, 2018. 2(1): p. 51-57.<br>
+3.&nbsp;&nbsp;Hout, M.C., M.H. Papesh, and S.D. Goldinger, Multidimensional scaling. Wiley Interdiscip Rev Cogn Sci, 2013. 4(1): p. 93-103.<br>
+4.&nbsp;&nbsp;Woods, C.T., et al., Non-metric multidimensional performance indicator scaling reveals seasonal and team dissimilarity within the National Rugby League. Journal of Science and Medicine in Sport, 2018. 21(4): p. 410-415.<br>
