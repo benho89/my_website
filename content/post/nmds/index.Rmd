@@ -11,7 +11,7 @@ image:
 lastmod: '2022-05-08T00:00:00Z'
 projects: []
 subtitle: Plot relationships between training drills based on athlete activity profile data using non-metric multidimensional scaling
-summary: Learn how to easily apply non-metric multidimensional scaling to quantify and visualise the (dis)similarity between training drills based on athlete activity profile data.
+summary: Learn an ordination approach that may be useful as an alternate method for presenting GPS and/or accelerometer data from training.
 tags: R
 title: An Ordination Visualisation to Profile Training
 ---
